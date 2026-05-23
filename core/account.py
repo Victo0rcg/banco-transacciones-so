@@ -148,24 +148,6 @@ class Account:
         })
         return True
     
-    def can_transfer(self, amount: float) -> bool:
-        """
-        Verifica si la cuenta tiene fondos suficientes para la transferencia (seguro para hilos).
-        
-        Adquiere el mutex para asegurar una verificación consistente del saldo.
-        
-        Argumentos:
-            amount (float): Cantidad a verificar para la transferencia
-            
-        Retorna:
-            bool: Verdadero si hay fondos suficientes disponibles
-        """
-        if amount <= 0:
-            return False
-        
-        with self._lock:
-            return self.balance >= amount
-    
     def get_transaction_history(self) -> list:
         """
         Recupera el historial completo de transacciones (seguro para hilos).

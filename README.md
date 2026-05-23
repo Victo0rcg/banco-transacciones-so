@@ -10,27 +10,27 @@
 
 ## Tabla de contenidos
 
-1. [Descripción General](#1-Descripción-General)
-2. [Objetivos](#2-Objetivos)
-3. [Marco Conceptual](#3-Marco-Conceptual)
-4. [Arquitectura del Sistema](#4-Arquitectura-del-Sistema)
-5. [Estructura del Proyecto](#5-Estructura-del-Proyecto)
-6. [Módulos y Arquitectura de Clases](#6-Módulos-y-Arquitectura-de-Clases)
-   - 6.1 [Core — Motor de Cuentas y Transacciones](#61-Core--Motor-de-Cuentas-y-Transacciones)
-   - 6.2 [Scheduling — Planificador SCAN](#62-Scheduling--Planificador-SCAN)
-   - 6.3 [Security — Control de acceso RBAC](#63-Security--Control-de-Acceso-RBAC)
-   - 6.4 [Concurrency — Algoritmo del Banquero](#64-Concurrency--Algoritmo-del-Banquero)
+1. [Descripción General](#1-descripción-general)
+2. [Objetivos](#2-objetivos)
+3. [Marco Conceptual](#3-marco-conceptual)
+4. [Arquitectura del Sistema](#4-arquitectura-del-sistema)
+5. [Estructura del Proyecto](#5-estructura-del-proyecto)
+6. [Módulos y Arquitectura de Clases](#6-módulos-y-arquitectura-de-clases)
+   - 6.1 [Core — Motor de Cuentas y Transacciones](#61-core--motor-de-cuentas-y-transacciones)
+   - 6.2 [Scheduling — Planificador SCAN](#62-scheduling--planificador-scan)
+   - 6.3 [Security — Control de Acceso RBAC](#63-security--control-de-acceso-rbac)
+   - 6.4 [Concurrency — Algoritmo del Banquero](#64-concurrency--algoritmo-del-banquero)
    - 6.5 [main.py — Orquestador](#65-mainpy--orquestador)
-7. [Flujo de Ejecución Eetallado](#7-Flujo-de-Ejecución-Detallado)
-8. [Mecanismos de Sincronización](#8-Mecanismos-de-Sincronización)
-9. [Prevención de Interbloqueos](#9-Prevención-de-Interbloqueos)
-10. [Modelo de Permisos y Dominios](#10-Modelo-de-Permisos-y-Dominios)
-11. [Planificación SCAN Aplicada al Logging](#11-Planificación-scan-Aplicada-al-Logging)
-12. [Manejo de Interrupciones y Señales](#12-Manejo-de-Interrupciones-y-Señales)
-13. [Especificaciones Técnicas](#13-Epecificaciones-Técnicas)
-14. [Ejecución y Flujo de Trabajo](#14-Ejecución-y-Flujo-de-Trabajo)
-15. [Salida Esperada del Sistema](#15-Salida-Esperada-del-Sistema)
-16. [Referencias](#16-Referencias)
+7. [Flujo de Ejecución Detallado](#7-flujo-de-ejecución-detallado)
+8. [Mecanismos de Sincronización](#8-mecanismos-de-sincronización)
+9. [Prevención de Interbloqueos](#9-prevención-de-interbloqueos)
+10. [Modelo de Permisos y Dominios](#10-modelo-de-permisos-y-dominios)
+11. [Planificación SCAN Aplicada al Logging](#11-planificación-scan-aplicada-al-logging)
+12. [Manejo de Interrupciones y Señales](#12-manejo-de-interrupciones-y-señales)
+13. [Especificaciones Técnicas](#13-especificaciones-técnicas)
+14. [Ejecución y Modos de Uso](#14-ejecución-y-modos-de-uso)
+15. [Salida Esperada del Sistema](#15-salida-esperada-del-sistema)
+16. [Referencias](#16-referencias)
 
 ---
 
@@ -41,6 +41,8 @@ Este proyecto implementa un **simulador de procesador de transacciones bancarias
 El sistema permite que múltiples hilos de ejecución compitan simultáneamente por el acceso a cuentas bancarias compartidas, garantizando la consistencia de los saldos mediante primitivas de sincronización estándar (`threading.Lock`, `threading.Semaphore`) y un patrón productor-consumidor implementado sobre `queue.Queue`.
 
 Cada transacción atraviesa un ciclo de vida completo: es creada por un productor, encolada, validada por el subsistema RBAC, evaluada por el Algoritmo del Banquero (en el caso de transferencias), ejecutada atómicamente sobre las cuentas y, finalmente, registrada en disco mediante el planificador SCAN.
+
+El sistema ofrece dos modos de uso: una **demostración automática** organizada en oleadas que hace visible el comportamiento concurrente, y un **modo interactivo** que permite crear transacciones manualmente desde la consola para depuración y presentación.
 
 ---
 
@@ -80,7 +82,7 @@ El patrón productor-consumidor desacopla la generación de trabajo (productores
 
 - Los **productores** son los hilos de aplicación que llaman a `submit_transaction()`.
 - El **buffer** es la `queue.Queue` interna del motor, que implementa exclusión mutua internamente.
-- Los **consumidores** son los hilos worker (`TransactionWorker-N`) que extraen transacciones y las ejecutan.
+- Los **consumidores** son los hilos worker (`TrabajadorTransacción-N`) que extraen transacciones y las ejecutan.
 
 ### 3.4 Algoritmo SCAN (elevador)
 
@@ -211,9 +213,9 @@ banco-transacciones-so/
 │   ├── __init__.py
 │   └── bankers_guard.py           # Clase GuardiaBanquero
 │
-├── logs/
-    └── transactions.log
-    └── system.log           # Generados en tiempo de ejecución
+└── logs/                          # Generados en tiempo de ejecución
+    ├── transactions.log           # Registro ordenado por SCAN
+    └── system.log                 # Traza detallada por hilos
 ```
 
 ---
@@ -224,7 +226,7 @@ banco-transacciones-so/
 
 #### Clase `Account` (`core/account.py`)
 
-Representa una cuenta bancaria con operaciones atómicas garantizadas por un `threading.Lock` propio de cada instancia.
+Representa una cuenta bancaria con operaciones atómicas garantizadas por un `threading.Lock` propio de cada instancia. Los saldos se mantienen exclusivamente en memoria — no hay persistencia en disco — lo que elimina las condiciones de carrera asociadas a operaciones de E/S dentro de la sección crítica.
 
 **Atributos:**
 
@@ -246,7 +248,6 @@ Representa una cuenta bancaria con operaciones atómicas garantizadas por un `th
 | `withdraw` | `(amount: float, description: str) -> bool` | Decrementa el saldo. Retorna `False` si fondos insuficientes. Adquiere `_lock`. | ✔ |
 | `get_balance` | `() -> float` | Retorna el saldo actual. Adquiere `_lock` para snapshot consistente. | ✔ |
 | `transfer_internal` | `(amount: float, source_id: str, description: str) -> bool` | Aplica un delta al saldo (negativo = débito, positivo = crédito). **Debe llamarse con `_lock` ya adquirido por el llamador.** | ✘ (interna) |
-| `can_transfer` | `(amount: float) -> bool` | Verifica si hay fondos suficientes para transferir. | ✔ |
 | `get_transaction_history` | `() -> list` | Retorna copia del historial. Adquiere `_lock`. | ✔ |
 | `acquire_lock` | `() -> None` | Expone `_lock.acquire()` para sincronización externa (usada por el motor en transferencias). | — |
 | `release_lock` | `() -> None` | Expone `_lock.release()` para sincronización externa. | — |
@@ -329,11 +330,7 @@ COMPLETED
 | Método | Retorno | Descripción |
 |---|---|---|
 | `get_operation_summary()` | `str` | Descripción legible de la operación |
-| `get_affected_accounts()` | `list[str]` | Lista de IDs de cuentas afectadas |
-| `is_multi_account()` | `bool` | `True` si involucra más de una cuenta |
-| `requires_authorization()` | `bool` | `True` para todo tipo salvo `QUERY` |
 | `to_dict()` | `dict` | Serialización completa a diccionario |
-| `from_dict(data)` | `Transaction` | Deserialización desde diccionario (classmethod) |
 
 ---
 
@@ -357,8 +354,6 @@ No acepta `transaction_id`: el motor es el único responsable de asignar identif
 | `with_withdrawal(account_id, amount)` | Configura como retiro |
 | `with_transfer(source_id, dest_id, amount)` | Configura como transferencia |
 | `with_query(account_id)` | Configura como consulta de saldo |
-| `with_block_number(block_number)` | Asigna número de bloque para SCAN |
-| `with_metadata(key, value)` | Agrega un par clave-valor al metadata |
 | `build()` | Valida y construye el objeto `Transaction`; lanza `ValueError` si faltan campos obligatorios |
 
 **Ejemplo de uso:**
@@ -366,7 +361,6 @@ No acepta `transaction_id`: el motor es el único responsable de asignar identif
 ```python
 txn = (TransactionBuilder("cajero01", "CAJERO")
        .with_deposit("ACC001", 500.0)
-       .with_metadata("canal", "ventanilla")
        .build())
 ```
 
@@ -402,9 +396,7 @@ Núcleo del sistema. Implementa el patrón productor-consumidor con `N` hilos wo
 | `submit_transaction(txn)` | Asigna ID, asigna `block_number` aleatorio y encola la transacción; retorna el ID asignado |
 | `set_authorization_hook(hook)` | Inyecta el callback RBAC |
 | `set_bankers_guard(guard)` | Inyecta el callback del Banquero |
-| `get_result(timeout)` | Extrae un resultado de `_result_queue` con timeout |
 | `get_all_results()` | Drena todos los resultados disponibles de `_result_queue` |
-| `get_pending_count()` | Retorna el tamaño aproximado de `_transaction_queue` |
 | `wait_completion()` | Bloquea hasta que `_transaction_queue.join()` retorne (todos los `task_done()` emitidos) |
 
 **Método `_execute_transfer` — Locking ordenado:**
@@ -475,7 +467,7 @@ Orden SCAN: [60, 70, 90, 30, 20, 10]
 
 ---
 
-### 6.3 `Security/` — Control de acceso RBAC
+### 6.3 `Security/` — Control de Acceso RBAC
 
 #### Enumeraciones `Rol` y `Operacion` (`security/roles.py`)
 
@@ -585,22 +577,31 @@ Un `threading.Lock` externo (`lock_guard`) protege el estado interno del `Guardi
 
 ### 6.5 `main.py` — Orquestador
 
-`main.py` tiene tres responsabilidades de integración que no pertenecen a ningún módulo individual:
+`main.py` se organiza en seis secciones con responsabilidades claramente separadas:
 
-**1. Puente RBAC (`construir_hook_rbac`):**  
-Convierte el `user_role: str` de cada `Transaction` al enum `Rol`, mapea `TransactionType` a `Operacion` y delega en `PoliticaRBAC.verificar_permiso()`. Captura `PermissionError` y lo traduce a `False` para el motor.
+**Sección 1 — Integración de componentes:**
+- `construir_hook_rbac`: convierte `user_role: str` al enum `Rol`, mapea `TransactionType` a `Operacion` y delega en `PoliticaRBAC.verificar_permiso()`. Captura `PermissionError` y lo traduce a `False` para el motor.
+- `construir_guard_banquero`: instancia `GuardiaBanquero` con el estado inicial del conjunto de cuentas. Solo actúa sobre transacciones de tipo `TRANSFER`. Protege el estado del banquero con un lock propio para concurrencia segura entre workers.
+- `registrar_resultados_con_scan`: recolecta los `block_number` de los resultados, invoca `scan_scheduling()` para obtener el orden óptimo y escribe las entradas en `logs/transactions.log`.
 
-**2. Puente Banquero (`construir_guard_banquero`):**  
-Instancia `GuardiaBanquero` con el estado inicial del conjunto de cuentas. Solo actúa sobre transacciones de tipo `TRANSFER`. Protege el estado del banquero con un lock propio para concurrencia segura entre workers.
+**Sección 2 — Utilidades de presentación en consola:**
+Funciones de impresión reutilizables: `imprimir_estado_cuentas`, `imprimir_resumen_resultados`, `imprimir_resultado_transaccion`. Esta última imprime el resultado de una transacción individual de forma inmediata, incluyendo la razón de fallo o denegación desde `metadata`.
 
-**3. Registro con SCAN (`registrar_resultados_con_scan`):**  
-Recolecta los `block_number` de los resultados, invoca `scan_scheduling()` para obtener el orden óptimo y escribe las entradas en `logs/transactions.log` en ese orden.
+**Sección 3 — Modo demostración automática (`ejecutar_demo`):**
+Lanza tres oleadas de transacciones predefinidas esperando la finalización de cada una antes de iniciar la siguiente, lo que hace visible la concurrencia y el comportamiento de cada subsistema de forma ordenada.
+
+**Sección 4 — Modo interactivo manual (`ejecutar_modo_interactivo`):**
+Bucle de menú que permite crear y ejecutar transacciones una a una, ver el estado de las cuentas y revisar el historial de la sesión activa.
+
+**Sección 5 — Inicialización (`inicializar_sistema`):**
+Crea las cuentas, configura los hooks y arranca el motor. Devuelve `(motor, cuentas)`.
+
+**Sección 6 — Punto de entrada (`main`):**
+Menú principal que coordina los modos de uso y garantiza que el log SCAN se escriba al salir.
 
 ---
 
-## 7. Flujo de Ejecución
-
-El siguiente macroalgoritmo describe la ejecución completa del sistema:
+## 7. Flujo de Ejecución Detallado
 
 ```
 INICIO
@@ -616,9 +617,9 @@ INICIO
 │      └─ Inyectar hook_rbac y hook_banquero
 │
 ├─ 5. motor.start()
-│      └─ Lanzar N hilos TransactionWorker (daemon=True)
+│      └─ Lanzar N hilos TrabajadorTransacción (daemon=True)
 │
-├─ 6. Para cada transacción en la lista de entrada:
+├─ 6. Para cada transacción sometida:
 │      └─ motor.submit_transaction(txn)
 │             ├─ Asignar transaction_id = "T{contador:06d}"  [bajo _lock]
 │             ├─ Asignar block_number = random(0, 100)
@@ -707,17 +708,17 @@ El `_lock` interno del motor protege el `_transaction_counter` y el flag `_runni
 
 ## 9. Prevención de Interbloqueos
 
-El sistema emplea dos estrategias complementarias de prevención de interbloqueos:
+El sistema emplea dos estrategias complementarias e intencionales de prevención de interbloqueos que operan en capas distintas:
 
-### Estrategia 1: Locking ordenado en transferencias
-
-La condición necesaria de **espera circular** se rompe adquiriendo los locks de las dos cuentas involucradas siempre en el mismo orden (lexicográfico por `account_id`). Si `ACC001 < ACC002`, cualquier hilo que quiera operar sobre este par siempre adquirirá primero `lock_ACC001`.
-
-### Estrategia 2: Algoritmo del Banquero como pre-validación
+### Estrategia 1: Algoritmo del Banquero (capa de planificación previa)
 
 Antes de que el motor entre en `_execute_transfer`, el `hook_banquero` consulta a `GuardiaBanquero` si la asignación de un lock adicional dejaría al sistema en estado seguro. Si no, la transacción se deniega sin haber adquirido ningún lock, evitando la situación de riesgo desde el inicio.
 
-Ambas estrategias son complementarias: el locking ordenado actúa en el nivel de adquisición de locks; el Banquero actúa en el nivel de planificación previa.
+### Estrategia 2: Locking ordenado en transferencias (capa de sincronización en ejecución)
+
+La condición necesaria de **espera circular** se rompe adquiriendo los locks de las dos cuentas involucradas siempre en el mismo orden (lexicográfico por `account_id`). Si `ACC001 < ACC002`, cualquier hilo que quiera operar sobre este par siempre adquirirá primero `lock_ACC001`, eliminando la posibilidad de espera circular en tiempo de ejecución.
+
+Ambas estrategias son complementarias: el Banquero actúa como puerta de entrada antes de cualquier adquisición de lock; el locking ordenado actúa como garantía durante la adquisición misma. Esta defensa en profundidad es coherente con la práctica en sistemas reales, donde múltiples capas de prevención coexisten para cubrir distintos puntos del ciclo de vida de un recurso.
 
 ---
 
@@ -750,7 +751,7 @@ construir_hook_rbac:
         │
         ▼
 PoliticaRBAC.verificar_permiso(rol, operacion)
-    ├─ operacion en permisos[rol] → True → continúa al motor
+    ├─ operacion en permisos[rol] → True → mark_authorized() → semaphore
     └─ operacion no en permisos  → PermissionError
                                         │
                                         ▼
@@ -807,7 +808,7 @@ El sistema implementa tres formas de manejo de interrupciones:
 
 ### 12.1 Interrupción por Timeout (timer interrupt simulado)
 
-En `_worker_loop`, la llamada `_transaction_queue.get(timeout=1.0)` lanza `queue.Empty` si no hay transacciones disponibles en 1 segundo. El worker captura esta excepción y continúa el bucle, verificando si `_running` sigue siendo `True`. Esto simula un **timer interrupt** que periódicamente cede el control para comprobar el estado del sistema.
+En `_worker_loop`, la llamada `_transaction_queue.get(timeout=1.0)` lanza `queue.Empty` si no hay transacciones disponibles en 1 segundo. El worker captura esta excepción y continúa el bucle. Esto simula un **timer interrupt** que periódicamente cede el control para comprobar el estado del sistema.
 
 ```python
 except queue.Empty:
@@ -842,22 +843,72 @@ Python 3.10 o superior.
 |---|---|---|
 | `threading` | Estándar | `Thread`, `Lock`, `Semaphore` |
 | `queue` | Estándar | `Queue` thread-safe para el patrón productor-consumidor |
-| `logging` | Estándar | Registro estructurado de eventos de todos los módulos |
+| `logging` | Estándar | Registro estructurado de eventos en `system.log` |
 | `dataclasses` | Estándar | Definición de `Account` y `Transaction` con `@dataclass` |
 | `enum` | Estándar | `TransactionType`, `TransactionStatus`, `Rol`, `Operacion` |
 | `random` | Estándar | Asignación de `block_number` en `submit_transaction` |
 | `datetime` | Estándar | Timestamps en historial de cuentas y metadata de transacciones |
 | `typing` | Estándar | Anotaciones de tipo (`Optional`, `Callable`, `Dict`) |
 
-## 14. Ejecución y Flujo de Trabajo
+---
+
+## 14. Ejecución y Modos de Uso
 
 ### Ejecución
 
 ```bash
-# Simulación completa
 python main.py
+```
+
+### Menú principal
+
+Al iniciar, el sistema presenta tres modos de uso:
 
 ```
+==============================================================
+  MENÚ PRINCIPAL
+==============================================================
+  1. Ejecutar demostración automática
+  2. Modo interactivo manual
+  3. Ambos (demo automática + interactivo)
+--------------------------------------------------------------
+  4. Ver estado actual de cuentas
+  5. Ver resumen de transacciones procesadas
+--------------------------------------------------------------
+  6. Salir
+==============================================================
+```
+
+### Modo demostración automática (opción 1)
+
+Ejecuta una batería predefinida de transacciones organizada en tres oleadas. Cada oleada espera la finalización completa antes de iniciar la siguiente, y muestra los resultados entre oleadas:
+
+- **Oleada 1:** operaciones válidas de todos los tipos (depósitos, retiros, transferencias, consultas). Incluye un retiro con fondos insuficientes para demostrar el estado `FAILED`.
+- **Oleada 2:** violaciones intencionales de RBAC (AUDITOR intentando depósito y retiro, CAJERO intentando transferencia). Todas deben producir estado `DENIED`.
+- **Oleada 3:** diez transacciones aleatorias concurrentes que hacen visible la competencia por los mutex de las cuentas.
+
+### Modo interactivo manual (opción 2)
+
+Permite crear transacciones una a una desde la consola. El resultado de cada operación se imprime de forma inmediata tras su procesamiento:
+
+```
+--------------------------------------------------------------
+  MENÚ INTERACTIVO
+--------------------------------------------------------------
+  1. Depósito
+  2. Retiro
+  3. Transferencia
+  4. Consulta de saldo
+--------------------------------------------------------------
+  5. Ver estado de todas las cuentas
+  6. Ver resumen de esta sesión
+  7. Volver al menú principal
+--------------------------------------------------------------
+```
+
+### Modo combinado (opción 3)
+
+Ejecuta la demostración automática completa y luego abre el modo interactivo, permitiendo hacer operaciones manuales sobre los saldos resultantes de la demo. Ideal para presentaciones.
 
 ### Flujo de Trabajo con Git
 
@@ -873,59 +924,75 @@ python main.py
 
 ## 15. Salida Esperada del Sistema
 
+### Demostración automática
+
 ```
-========================================================
+==============================================================
   PROCESADOR DE TRANSACCIONES BANCARIAS
   Sistemas Operativos — UTP 2026-1
-========================================================
+==============================================================
 
-12:00:01 [MainThread]         [MAIN] 5 cuentas inicializadas.
-12:00:01 [MainThread]         [MAIN] Política RBAC cargada.
-12:00:01 [MainThread]         [MAIN] Guardia Banquero inicializado.
-12:00:01 [MainThread]         [MAIN] Motor de transacciones iniciado.
-12:00:01 [MainThread]         [MAIN] Sometiendo 20 transacciones al motor...
-12:00:01 [TransactionWorker-1][RBAC] Verificando - Rol: CAJERO | Intenta: DEPOSITO
-12:00:01 [TransactionWorker-1][RBAC] Acceso concedido.
-12:00:01 [TransactionWorker-2][RBAC] ACCESO DENEGADO: AUDITOR no tiene privilegios para DEPOSITO
-12:00:01 [TransactionWorker-3][BANQUERO] P0 solicita recursos: [1]
-12:00:01 [TransactionWorker-3][BANQUERO] ESTADO SEGURO. Secuencia: [P0, P1, P2, P3, P4]
-12:00:01 [TransactionWorker-3][BANQUERO] Peticion concedida a P0.
-...
-12:00:02 [MainThread]         [MAIN] Todas las transacciones han sido procesadas.
-12:00:02 [MainThread]         [SCAN] Orden de bloques: [5, 12, 23, 41, 67, 89, 94, 71, 38, 19]
-12:00:02 [MainThread]         [SCAN] Escribiendo bloque 005 → T000008 (COMPLETED)
-12:00:02 [MainThread]         [SCAN] Escribiendo bloque 012 → T000003 (COMPLETED)
-...
+  Sistema inicializado correctamente.
 
-========================================================
+==============================================================
+  ESTADO ACTUAL DE CUENTAS
+==============================================================
+  [ACC001] Alice Gómez: $5000.00
+  [ACC002] Bob Martínez: $3000.00
+  [ACC003] Carol Herrera: $8000.00
+  [ACC004] David Ríos: $1500.00
+  [ACC005] Elena Vargas: $10000.00
+==============================================================
+
+--------------------------------------------------------------
+  OLEADA 1 — Operaciones válidas (todos los tipos)
+  Sometiendo 8 transacciones al motor...
+--------------------------------------------------------------
+
+  ✓ [T000001] Depósito $1000.00 en ACC001
+     Rol    : CAJERO
+     Estado : COMPLETED
+
+  ✗ [T000004] Retiro $5000.00 de ACC004
+     Rol    : CAJERO
+     Estado : FAILED  (Withdrawal operation failed)
+
+  ✓ [T000005] Transferencia $300.00 de ACC001 a ACC002
+     Rol    : ADMINISTRADOR
+     Estado : COMPLETED
+  ...
+
+==============================================================
   RESUMEN DE TRANSACCIONES
-========================================================
-  Total procesadas : 20
+==============================================================
+  Total procesadas : 21
   Completadas      : 16
   Fallidas         :  2  (ej: fondos insuficientes)
-  Denegadas        :  2  (RBAC o Banquero)
-========================================================
+  Denegadas        :  3  (RBAC o Banquero)
+==============================================================
+```
 
-  Detalle:
-  ✓ [T000001] Deposit $1000.00 to ACC001    | rol=CAJERO         | COMPLETED
-  ✓ [T000005] Transfer $300.00 ACC001→ACC002| rol=ADMINISTRADOR  | COMPLETED
-  ✗ [T000004] Withdraw $5000.00 from ACC004 | rol=CAJERO         | FAILED
-  ✗ [T000009] Deposit $100.00 to ACC002     | rol=AUDITOR        | DENIED
+### Modo interactivo
 
-========================================================
-  ESTADO FINAL DE CUENTAS
-========================================================
-  [ACC001] Alice Gómez:   $5700.00
-  [ACC002] Bob Martínez:  $3100.00
-  [ACC003] Carol Herrera: $8500.00
-  [ACC004] David Ríos:    $1500.00
-  [ACC005] Elena Vargas:  $8000.00
-========================================================
+```
+--------------------------------------------------------------
+  DEPÓSITO
+--------------------------------------------------------------
+
+  Cuentas disponibles: ACC001, ACC002, ACC003, ACC004, ACC005
+  ID cuenta destino: ACC002
+  Roles válidos: ADMINISTRADOR, CAJERO, AUDITOR
+  Rol del usuario: CAJERO
+  Monto ($): 500
+
+  ✓ [T000022] Depósito $500.00 en ACC002
+     Rol    : CAJERO
+     Estado : COMPLETED
 ```
 
 ---
 
-## 17. Referencias
+## 16. Referencias
 
 - Dijkstra, E. W. (1965). Solution of a problem in concurrent programming control. *Communications of the ACM, 8*(9), 569. https://doi.org/10.1145/365559.365617
 

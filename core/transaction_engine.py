@@ -196,13 +196,7 @@ class TransactionEngine:
         Returns:
             Transaction: Transacción actualizada con estado y resultado
         """
-        try:
-            # Aplica autorización RBAC si el hook está establecido
-            if self._authorization_hook:
-                if not self._authorization_hook(transaction):
-                    transaction.mark_denied("Authorization failed")
-                    return transaction
-            
+        try:            
             # Valida que las cuentas existan
             if transaction.source_account_id not in self._accounts:
                 transaction.mark_failed("Source account not found")
@@ -313,25 +307,6 @@ class TransactionEngine:
                 second_account.release_lock()
         finally:
             first_account.release_lock()
-    
-    def get_pending_count(self) -> int:
-        """Obtiene el conteo de transacciones pendientes en la cola."""
-        return self._transaction_queue.qsize()
-    
-    def get_result(self, timeout: float = 1.0) -> Optional[Transaction]:
-        """
-        Recupera una transacción completada de la cola de resultados.
-        
-        Args:
-            timeout (float): Segundos para esperar un resultado
-            
-        Returns:
-            Transaction o None si tiempo de espera
-        """
-        try:
-            return self._result_queue.get(timeout=timeout)
-        except queue.Empty:
-            return None
     
     def get_all_results(self) -> list:
         """
