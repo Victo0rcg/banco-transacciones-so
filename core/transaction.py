@@ -1,6 +1,6 @@
 """
 Módulo 3: Núcleo de Transacciones
-Define estructuras de datos nucleares y operaciones del sistema transaccional bancario.
+Define estructuras de datos y operaciones del sistema transaccional bancario.
 Provee la clase Transaction, enumeración TransactionType y utilidades relacionadas.
 """
 
@@ -225,7 +225,7 @@ class TransactionBuilder:
 
     def build(self) -> Transaction:
         if self._transaction_type is None:
-            raise ValueError("El tipo de transacción debe establecerse (use métodos with_*)")
+            raise ValueError("El tipo de transacción debe establecerse")
         if self._source_account_id is None:
             raise ValueError("La cuenta de origen debe estar establecida")
         return Transaction(
