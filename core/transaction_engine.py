@@ -1,5 +1,5 @@
 """
-Módulo 1: Motor de Transacciones
+Módulo 2: Motor de Transacciones
 Implementa un patrón productor-consumidor para el procesamiento concurrente de transacciones
 con gestión de colas seguras para hilos y control de concurrencia basado en semáforos.
 """
@@ -101,7 +101,7 @@ class TransactionEngine:
     
     def stop(self, timeout: float = 5.0) -> None:
         """
-        Detiene el motor de transacciones de manera elegante.
+        Detiene el motor de transacciones de manera.
         
         Args:
             timeout (float): Segundos para esperar a que los trabajadores terminen

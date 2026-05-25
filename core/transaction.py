@@ -1,5 +1,5 @@
 """
-Módulo 1: Núcleo de Transacciones
+Módulo 3: Núcleo de Transacciones
 Define estructuras de datos nucleares y operaciones del sistema transaccional bancario.
 Provee la clase Transaction, enumeración TransactionType y utilidades relacionadas.
 """
