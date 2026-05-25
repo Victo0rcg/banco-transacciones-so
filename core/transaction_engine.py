@@ -149,7 +149,7 @@ class TransactionEngine:
         """Bucle principal del hilo trabajador (consumidor)."""
         while True:
             try:
-                # Espera una transacción con tiempo de espera para permitir apagado elegante
+                # Espera una transacción con tiempo de espera para permitir apagado 
                 transaction = self._transaction_queue.get(timeout=1.0)
                 
                 # Valor centinela indica apagado
@@ -294,11 +294,10 @@ class TransactionEngine:
         try:
             second_account.acquire_lock()
             try:
-                # Accede al saldo directamente — los bloqueos ya están retenidos, NO llames a get_balance()
+                # Accede al saldo directamente
                 if source_account.balance < amount:
                     return False
                 
-                # Usa la firma correcta de transfer_internal: (amount, source_id, description)
                 source_account.transfer_internal(-amount, dest_id, f"Transferencia a {dest_id}")
                 dest_account.transfer_internal(amount, source_id, f"Transferencia desde {source_id}")
                 
