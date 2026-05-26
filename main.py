@@ -111,7 +111,7 @@ def construir_guard_banquero(cuentas: dict):
     antes de que se adquiera ningún lock.
     El ordenamiento jerárquico de locks en _execute_transfer actúa como
     capa de sincronización en tiempo de ejecución, eliminando la espera
-    circular. Ambas estrategias son complementarias e intencionales.
+    circular.
     """
     n            = len(cuentas)
     cuenta_ids   = list(cuentas.keys())
