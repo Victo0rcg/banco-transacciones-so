@@ -20,7 +20,6 @@ Modos de ejecución:
 import logging
 import threading
 import random
-import time
 import os
 
 from core.account import Account
@@ -118,8 +117,8 @@ def construir_guard_banquero(cuentas: dict):
     indice_cuenta = {cid: i for i, cid in enumerate(cuenta_ids)}
 
     recursos_disponibles = [n]
-    necesidad_maxima     = [[1]] * n
-    recursos_asignados   = [[0]] * n
+    necesidad_maxima     = [[1] for _ in range(n)]
+    recursos_asignados   = [[0] for _ in range(n)]
 
     guard      = GuardiaBanquero(recursos_disponibles, necesidad_maxima, recursos_asignados)
     lock_guard = threading.Lock()
